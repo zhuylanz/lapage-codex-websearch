@@ -1,0 +1,30 @@
+{
+  "name": "codex-websearch",
+  "version": "1.1.0",
+  "private": true,
+  "description": "LaPage Digital skill for searching the hosted Codex web index with local OAuth.",
+  "homepage": "https://github.com/zhuylanz/lapage-codex-websearch#readme",
+  "bugs": {
+    "url": "https://github.com/zhuylanz/lapage-codex-websearch/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhuylanz/lapage-codex-websearch.git"
+  },
+  "author": "LaPage Digital",
+  "type": "module",
+  "bin": {
+    "codex-websearch": "bin/codex-websearch.js"
+  },
+  "scripts": {
+    "check": "node --check scripts/codex-websearch.mjs && node --check bin/codex-websearch.js && node bin/codex-websearch.js --version >/dev/null && node bin/codex-websearch.js --help >/dev/null",
+    "test": "node --test scripts/codex-websearch.test.mjs"
+  },
+  "keywords": [
+    "codex",
+    "openclaw",
+    "web-search",
+    "skill"
+  ],
+  "license": "MIT"
+}

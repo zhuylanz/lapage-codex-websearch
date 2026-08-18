@@ -1,0 +1,7 @@
+interface:
+  display_name: "lapage-codex-websearch"
+  short_description: "Search and inspect the web with Codex OAuth"
+  icon_small: "./assets/lapage-digital-mark.png"
+  icon_large: "./assets/lapage-digital-mark.png"
+  brand_color: "#F47A32"
+  default_prompt: "Use $codex-websearch to search the current web with official Codex OAuth and return cited results."
