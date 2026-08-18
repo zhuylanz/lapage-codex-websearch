@@ -9,6 +9,18 @@
 [![CI](https://github.com/zhuylanz/lapage-codex-websearch/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuylanz/lapage-codex-websearch/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F47A32.svg)](LICENSE)
 
+## Why This Skill Exists
+
+Codex normally provides native web search through its active model connection. When Codex is configured to use a custom model router such as **9Router**, normal chat may keep working while native web search becomes unavailable or returns provider/endpoint errors. The router handles the model request, but it may not expose or forward Codex's hosted search tools.
+
+`codex-websearch` provides an independent fallback. It bypasses the active model provider and calls OpenAI's hosted Codex search service with the user's existing local Codex or OpenClaw OAuth credentials.
+
+Use this skill when:
+
+- Codex is running through 9Router or another custom model provider.
+- Native web search is missing, disabled, or fails with a provider or endpoint error.
+- An agent still needs current information, source discovery, URL inspection, image search, or cited research.
+
 ## Install With An Agent
 
 Share this repository URL with your coding agent and ask it to install the skill:

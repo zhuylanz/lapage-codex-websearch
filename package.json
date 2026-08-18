@@ -2,7 +2,7 @@
   "name": "codex-websearch",
   "version": "1.2.0",
   "private": true,
-  "description": "Standalone LaPage Digital skill for searching the hosted Codex web index with local OAuth.",
+  "description": "OAuth-backed Codex web-search fallback for custom model routers such as 9Router.",
   "homepage": "https://github.com/zhuylanz/lapage-codex-websearch#readme",
   "bugs": {
     "url": "https://github.com/zhuylanz/lapage-codex-websearch/issues"
@@ -24,6 +24,8 @@
     "codex",
     "openclaw",
     "web-search",
+    "model-router",
+    "9router",
     "skill"
   ],
   "license": "MIT"

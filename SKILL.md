@@ -1,11 +1,13 @@
 ---
 name: codex-websearch
-description: Search and inspect the current public web through OpenAI's hosted Codex Alpha Search endpoint using local Codex or OpenClaw OAuth. Use when Codex needs live web search, current information, source discovery, URL opening, in-page finding, image search, cited research, or a fallback because session-native web search is unavailable through the active model provider.
+description: Search and inspect the current public web through OpenAI's hosted Codex Alpha Search endpoint using local Codex or OpenClaw OAuth. Use when Codex needs live web search, current information, source discovery, URL opening, in-page finding, image search, or cited research; especially as a fallback when session-native web search is missing or fails behind a custom model router or provider such as 9Router.
 ---
 
 # Codex Websearch
 
-Call the hosted Codex search service directly. This bypasses the active model provider, so searches continue to work when a proxy does not implement `alpha/search`.
+Call the hosted Codex search service directly. This bypasses the active model provider, so searches continue to work when Codex chat is routed through 9Router or another custom provider that does not expose or forward the native hosted search tools.
+
+Prefer this skill immediately when session-native web search is missing or returns a provider, unsupported-tool, or endpoint error behind a router. Do not repeatedly retry the broken native provider path.
 
 ## Quick Start
 
