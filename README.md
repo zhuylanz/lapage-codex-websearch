@@ -11,15 +11,13 @@
 
 ## Install With An Agent
 
-Share these repository URLs with your coding agent and ask it to install both skills:
+Share this repository URL with your coding agent and ask it to install the skill:
 
 ```text
-Install these skills:
-- https://github.com/zhuylanz/lapage-codex-websearch
-- https://github.com/zhuylanz/lapage-codex-imagen
+Install the codex-websearch skill from https://github.com/zhuylanz/lapage-codex-websearch
 ```
 
-`codex-websearch` uses `codex-imagen`'s concurrency-safe OAuth refresh engine when credentials expire. Install both as sibling skills, or set `CODEX_IMAGEN_SCRIPT` to the installed `codex-imagen.mjs` path.
+The repository is self-contained. Its bundled OAuth refresh engine handles supported Codex and OpenClaw credential stores without another skill.
 
 ## What It Does
 
@@ -34,7 +32,6 @@ Install these skills:
 
 - Node.js 22+
 - An existing Codex or OpenClaw `openai-codex` OAuth login
-- The companion [lapage-codex-imagen](https://github.com/zhuylanz/lapage-codex-imagen) skill for automatic OAuth refresh
 
 ## Quick Start
 
@@ -80,7 +77,7 @@ Run `node scripts/codex-websearch.mjs --help` for the complete CLI reference.
 
 The helper discovers the dedicated Codex Imagen OAuth store and compatible OpenClaw auth stores. The normal `~/.codex/auth.json` file is not auto-discovered; pass it with `--auth` only when explicitly intended.
 
-When an access token is expired or rejected, the helper invokes the installed `codex-imagen` refresh engine, reloads the credential, and retries once. If refresh cannot recover authentication, it exits non-zero with a clear sign-in instruction.
+When an access token is expired or rejected, the bundled refresh engine locks shared OpenClaw profiles, atomically updates the selected credential store, reloads it, and retries once. If refresh cannot recover authentication, it exits non-zero with a clear sign-in instruction.
 
 ## Security And Privacy
 

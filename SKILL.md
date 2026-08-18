@@ -72,9 +72,7 @@ Auth lookup order:
 
 The normal `~/.codex/auth.json` file is not auto-discovered. Pass it explicitly only when intended.
 
-The helper never prints tokens. It automatically detects an expired access token, prints that it is attempting OAuth refresh, delegates refresh to `codex-imagen`'s concurrency-safe refresh engine, reloads the credential, and continues. If the search backend returns HTTP 401, it refreshes once and retries the search once.
-
-Install `codex-imagen` from `https://github.com/zhuylanz/lapage-codex-imagen` alongside this skill so automatic OAuth refresh is available. The helper also honors `CODEX_IMAGEN_SCRIPT` when the dependency is installed in a nonstandard location.
+The helper never prints tokens. It automatically detects an expired access token, uses its bundled concurrency-safe OAuth refresh engine, reloads the credential, and continues. If the search backend returns HTTP 401, it refreshes once and retries the search once. No companion skill is required.
 
 Never silently abandon an auth failure. If automatic refresh cannot run, fails, or the retried request is still rejected, stop the workflow and tell the user that authentication must be restored or they must sign in again. Do not report a search result, and never print tokens.
 

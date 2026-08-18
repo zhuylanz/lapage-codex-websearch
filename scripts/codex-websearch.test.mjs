@@ -7,7 +7,6 @@ import path from "node:path";
 import { test } from "node:test";
 
 const scriptPath = path.resolve("scripts", "codex-websearch.mjs");
-const imagenScriptPath = path.resolve("scripts", "fixtures", "mock-codex-imagen.mjs");
 
 function jwtWithExpiry(expiresMs) {
   const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -23,7 +22,7 @@ async function writeAuth(dir, expiresMs = Date.now() + 60_000) {
 async function runCli(args, env = {}) {
   const child = spawn(process.execPath, [scriptPath, ...args], {
     cwd: path.resolve("."),
-    env: { ...process.env, CODEX_IMAGEN_SCRIPT: imagenScriptPath, ...env },
+    env: { ...process.env, ...env },
   });
   let stdout = "";
   let stderr = "";
@@ -104,9 +103,13 @@ test("expired auth refreshes automatically before searching", async () => {
   const authPath = await writeAuth(tempDir, Date.now() - 60_000);
   let refreshCalls = 0;
   let searchCalls = 0;
+  let refreshBody = null;
   await withServer(async (request, response) => {
     if (request.url === "/oauth/token") {
       refreshCalls += 1;
+      let raw = "";
+      for await (const chunk of request) raw += chunk;
+      refreshBody = JSON.parse(raw);
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({
         access_token: jwtWithExpiry(Date.now() + 60 * 60_000),
@@ -126,6 +129,11 @@ test("expired auth refreshes automatically before searching", async () => {
   });
   assert.equal(refreshCalls, 1);
   assert.equal(searchCalls, 1);
+  assert.equal(refreshBody.grant_type, "refresh_token");
+  assert.equal(refreshBody.refresh_token, "refresh-secret");
+  const persisted = JSON.parse(await fs.readFile(authPath, "utf8"));
+  assert.equal(persisted.tokens.refresh_token, "rotated-refresh-secret");
+  assert.notEqual(persisted.tokens.access_token, null);
 });
 
 test("HTTP 401 refreshes once and retries the search", async () => {
@@ -166,7 +174,7 @@ test("failed automatic refresh stops with a clear user-facing error", async () =
   const authPath = await writeAuth(tempDir, Date.now() - 60_000);
   await withServer((_request, response) => {
     response.writeHead(401, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: { message: "refresh token revoked" } }));
+    response.end(JSON.stringify({ error: { code: "refresh_token_invalidated", message: "refresh token revoked: refresh-secret" } }));
   }, async (baseUrl) => {
     const result = await runCli(["--auth", authPath, "--refresh-url", baseUrl, "--json", "query"]);
     assert.equal(result.code, 1);
@@ -174,4 +182,119 @@ test("failed automatic refresh stops with a clear user-facing error", async () =
     assert.match(result.stderr, /Stop and let the user know/);
     assert.equal(result.stderr.includes("refresh-secret"), false);
   });
+});
+
+test("OpenClaw profile refresh is persisted without changing other profiles", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-websearch-openclaw-refresh-"));
+  const authPath = path.join(tempDir, "auth-profiles.json");
+  const profileId = "openai-codex:agent@example.com";
+  const otherProfile = { type: "oauth", provider: "another-provider", access: "keep-me" };
+  await fs.writeFile(authPath, `${JSON.stringify({
+    profiles: {
+      [profileId]: {
+        type: "oauth",
+        provider: "openai-codex",
+        access: jwtWithExpiry(Date.now() - 60_000),
+        refresh: "openclaw-refresh-secret",
+        accountId: "acct_openclaw",
+        expires: Date.now() - 60_000,
+      },
+      "another-provider:default": otherProfile,
+    },
+  })}\n`);
+
+  await withServer(async (request, response) => {
+    assert.equal(request.url, "/oauth/token");
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      access_token: jwtWithExpiry(Date.now() + 60 * 60_000),
+      refresh_token: "openclaw-rotated-secret",
+      expires_in: 3600,
+    }));
+  }, async (baseUrl) => {
+    const result = await runCli(
+      ["--auth", authPath, "--auth-profile", profileId, "--refresh-url", `${baseUrl}/oauth/token`, "--smoke", "--json"],
+      { OPENCLAW_STATE_DIR: tempDir }
+    );
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).account_id, "acct_openclaw");
+  });
+
+  const persisted = JSON.parse(await fs.readFile(authPath, "utf8"));
+  assert.equal(persisted.profiles[profileId].refresh, "openclaw-rotated-secret");
+  assert.deepEqual(persisted.profiles["another-provider:default"], otherProfile);
+});
+
+test("stale OpenClaw agent store inherits a fresh main profile without refreshing twice", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-websearch-openclaw-inherit-"));
+  const profileId = "openai-codex:agent@example.com";
+  const agentAuthPath = path.join(tempDir, "agents", "worker", "agent", "auth-profiles.json");
+  const mainAuthPath = path.join(tempDir, "agents", "main", "agent", "auth-profiles.json");
+  await fs.mkdir(path.dirname(agentAuthPath), { recursive: true });
+  await fs.mkdir(path.dirname(mainAuthPath), { recursive: true });
+  await fs.writeFile(agentAuthPath, `${JSON.stringify({ profiles: {
+    [profileId]: {
+      type: "oauth",
+      provider: "openai-codex",
+      access: jwtWithExpiry(Date.now() - 60_000),
+      refresh: "stale-agent-refresh",
+      accountId: "acct_shared",
+      expires: Date.now() - 60_000,
+    },
+  } })}\n`);
+  await fs.writeFile(mainAuthPath, `${JSON.stringify({ profiles: {
+    [profileId]: {
+      type: "oauth",
+      provider: "openai-codex",
+      access: jwtWithExpiry(Date.now() + 60 * 60_000),
+      refresh: "fresh-main-refresh",
+      accountId: "acct_shared",
+      expires: Date.now() + 60 * 60_000,
+    },
+  } })}\n`);
+
+  let refreshCalls = 0;
+  await withServer((_request, response) => {
+    refreshCalls += 1;
+    response.writeHead(500, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { message: "refresh should not be called" } }));
+  }, async (baseUrl) => {
+    const result = await runCli(
+      ["--auth", agentAuthPath, "--auth-profile", profileId, "--refresh-url", `${baseUrl}/oauth/token`, "--smoke", "--json"],
+      { OPENCLAW_STATE_DIR: tempDir }
+    );
+    assert.equal(result.code, 0, result.stderr);
+  });
+
+  assert.equal(refreshCalls, 0);
+  const persisted = JSON.parse(await fs.readFile(agentAuthPath, "utf8"));
+  assert.equal(persisted.profiles[profileId].refresh, "fresh-main-refresh");
+});
+
+test("concurrent callers share one refresh for the same auth store", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-websearch-concurrent-refresh-"));
+  const authPath = await writeAuth(tempDir, Date.now() - 60_000);
+  let refreshCalls = 0;
+
+  await withServer(async (request, response) => {
+    assert.equal(request.url, "/oauth/token");
+    refreshCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      access_token: jwtWithExpiry(Date.now() + 60 * 60_000),
+      refresh_token: "shared-rotated-secret",
+      expires_in: 3600,
+    }));
+  }, async (baseUrl) => {
+    const args = ["--auth", authPath, "--refresh-url", `${baseUrl}/oauth/token`, "--smoke", "--json"];
+    const [first, second] = await Promise.all([
+      runCli(args, { OPENCLAW_STATE_DIR: tempDir }),
+      runCli(args, { OPENCLAW_STATE_DIR: tempDir }),
+    ]);
+    assert.equal(first.code, 0, first.stderr);
+    assert.equal(second.code, 0, second.stderr);
+  });
+
+  assert.equal(refreshCalls, 1);
 });

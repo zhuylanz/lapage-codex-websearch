@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { refreshOAuth } from "./codex-oauth-refresh.mjs";
 
 const DEFAULT_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_MODEL = "gpt-5.6-sol";
@@ -14,8 +14,7 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 12_000;
 const DEFAULT_AUTH_PATH = path.join(os.homedir(), ".codex", "imagen_auth.json");
 const DEFAULT_CODEX_VERSION = "0.147.0";
 const DEFAULT_REFRESH_URL = "https://auth.openai.com/oauth/token";
-const PACKAGE_VERSION = "1.1.0";
-const IMAGEN_REPOSITORY_URL = "https://github.com/zhuylanz/lapage-codex-imagen";
+const PACKAGE_VERSION = "1.2.0";
 
 class UsageError extends Error {}
 class HttpStatusError extends Error {
@@ -246,33 +245,6 @@ async function existingFile(filePath) {
   }
 }
 
-function imagenScriptCandidates() {
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const codexHome = process.env.CODEX_HOME?.trim()
-    ? resolveUserPath(process.env.CODEX_HOME.trim())
-    : path.join(os.homedir(), ".codex");
-  const openClawState = process.env.OPENCLAW_STATE_DIR?.trim()
-    ? resolveUserPath(process.env.OPENCLAW_STATE_DIR.trim())
-    : path.join(os.homedir(), ".openclaw");
-
-  return [
-    process.env.CODEX_IMAGEN_SCRIPT,
-    path.resolve(scriptDir, "../../codex-imagen/scripts/codex-imagen.mjs"),
-    path.join(codexHome, "skills", "codex-imagen", "scripts", "codex-imagen.mjs"),
-    path.join(os.homedir(), ".agents", "skills", "codex-imagen", "scripts", "codex-imagen.mjs"),
-    path.join(openClawState, "skills", "codex-imagen", "scripts", "codex-imagen.mjs"),
-  ].filter(Boolean).map(resolveUserPath);
-}
-
-async function resolveImagenScript() {
-  for (const candidate of [...new Set(imagenScriptCandidates())]) {
-    if (await existingFile(candidate)) return candidate;
-  }
-  throw new Error(
-    `Automatic OAuth refresh requires the codex-imagen skill. Install ${IMAGEN_REPOSITORY_URL} alongside codex-websearch or set CODEX_IMAGEN_SCRIPT to its scripts/codex-imagen.mjs file.`
-  );
-}
-
 function authCandidates() {
   const codexHome = process.env.CODEX_HOME?.trim()
     ? resolveUserPath(process.env.CODEX_HOME.trim())
@@ -387,14 +359,6 @@ async function loadAuth(options) {
   return auth;
 }
 
-function refreshFailureDetail(result) {
-  const detail = String(result.stderr || result.error?.message || "unknown refresh error")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1000);
-  return detail || "unknown refresh error";
-}
-
 async function refreshAuth(options, auth, reason) {
   if (!options.refresh) {
     throw new Error(`Authentication failed (${reason}), and automatic OAuth refresh is disabled. Stop and let the user know authentication must be restored.`);
@@ -405,26 +369,19 @@ async function refreshAuth(options, auth, reason) {
   }
 
   process.stderr.write(`codex-websearch: authentication failed (${reason}); attempting automatic OAuth refresh\n`);
-  const imagenScript = await resolveImagenScript();
-  const args = [
-    imagenScript,
-    "--auth",
-    auth.authPath,
-    "--refresh-only",
-    "--json",
-    "--quiet",
-    "--refresh-url",
-    options.refreshUrl,
-  ];
-  if (auth.profileId) args.push("--auth-profile", auth.profileId);
-
-  const result = spawnSync(process.execPath, args, {
-    encoding: "utf8",
-    timeout: 60_000,
-    env: process.env,
-  });
-  if (result.status !== 0 || result.error) {
-    throw new Error(`Authentication failed, and automatic OAuth refresh could not recover: ${refreshFailureDetail(result)}. Stop and let the user know they must sign in again.`);
+  try {
+    await refreshOAuth({
+      authPath: auth.authPath,
+      format: auth.format,
+      profileId: auth.profileId,
+      originalAccessToken: auth.accessToken,
+      originalRefreshToken: auth.refreshToken,
+      reason: reason.startsWith("HTTP ") ? "HTTP authentication failure" : reason,
+      refreshUrl: options.refreshUrl,
+      userAgent: userAgent(),
+    });
+  } catch (error) {
+    throw new Error(`Authentication failed, and automatic OAuth refresh could not recover: ${error.message}. Stop and let the user know they must sign in again.`);
   }
 
   const refreshed = await loadAuth(options);
