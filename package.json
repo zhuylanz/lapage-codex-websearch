@@ -1,6 +1,6 @@
 {
   "name": "codex-websearch",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "OAuth-backed Codex web-search fallback for custom model routers such as 9Router.",
   "homepage": "https://github.com/zhuylanz/lapage-codex-websearch#readme",
@@ -17,8 +17,9 @@
     "codex-websearch": "bin/codex-websearch.js"
   },
   "scripts": {
-    "check": "node --check scripts/codex-websearch.mjs && node --check scripts/codex-oauth-refresh.mjs && node --check bin/codex-websearch.js && node bin/codex-websearch.js --version >/dev/null && node bin/codex-websearch.js --help >/dev/null",
-    "test": "node --test scripts/codex-websearch.test.mjs"
+    "check": "node --check scripts/codex-websearch.mjs && node --check scripts/codex-oauth-refresh.mjs && node --check bin/codex-websearch.js && node bin/codex-websearch.js --version >/dev/null && node bin/codex-websearch.js --help >/dev/null && node --check scripts/check-update.mjs",
+    "test": "node --test scripts/check-update.test.mjs scripts/codex-websearch.test.mjs",
+    "check-update": "node scripts/check-update.mjs --force"
   },
   "keywords": [
     "codex",

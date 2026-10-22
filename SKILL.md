@@ -9,6 +9,27 @@ Call the hosted Codex search service directly. This bypasses the active model pr
 
 Prefer this skill immediately when session-native web search is missing or returns a provider, unsupported-tool, or endpoint error behind a router. Do not repeatedly retry the broken native provider path.
 
+## Before First Use In A Session: Check For Updates
+
+Run the update check once per session, before the first real command:
+
+```bash
+node {baseDir}/scripts/check-update.mjs
+```
+
+It compares this skill's `package.json` version with the published version at
+https://github.com/zhuylanz/lapage-codex-websearch and caches the answer for 24 hours.
+
+- `update-available`: tell the user the installed and latest versions and the
+  printed update command, and ask before running it. Continue with the
+  installed version if they decline.
+- `up-to-date`, `ahead`, `disabled`: continue silently.
+- `unavailable` (offline, timeout, GitHub error): continue with the installed
+  version. Never block the task on the update check.
+
+Use `--json` for structured output and `--force` to bypass the cache. Set
+`LAPAGE_SKILL_UPDATE_CHECK=0` to disable the check.
+
 ## Quick Start
 
 Run the helper through Node:
